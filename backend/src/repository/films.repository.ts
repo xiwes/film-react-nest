@@ -1,15 +1,60 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { randomUUID } from 'node:crypto';
+import { Film, FilmDocument } from './schemas/film.schema';
 import { FilmDto, ScheduleItemDto } from '../films/dto/films.dto';
-
-interface FilmWithSchedule extends FilmDto {
-  schedule: ScheduleItemDto[];
-}
 
 @Injectable()
 export class FilmsRepository {
-  private films: FilmWithSchedule[] = [
-    {
+  constructor(
+    @InjectModel(Film.name) private readonly filmModel: Model<FilmDocument>,
+  ) {}
+
+  async findAll(): Promise<FilmDto[]> {
+    const films = await this.filmModel.find().lean().exec();
+    return films.map((film) => ({
+      id: film.id,
+      rating: film.rating,
+      director: film.director,
+      tags: film.tags,
+      title: film.title,
+      about: film.about,
+      description: film.description,
+      image: film.image,
+      cover: film.cover,
+    }));
+  }
+
+  async findSchedule(filmId: string): Promise<ScheduleItemDto[] | undefined> {
+    const film = await this.filmModel.findOne({ id: filmId }).lean().exec();
+    return film?.schedule;
+  }
+
+  async findSession(
+    filmId: string,
+    sessionId: string,
+  ): Promise<ScheduleItemDto | undefined> {
+    const schedule = await this.findSchedule(filmId);
+    return schedule?.find((s) => s.id === sessionId);
+  }
+
+  async addTakenSeat(
+    filmId: string,
+    sessionId: string,
+    seatKey: string,
+  ): Promise<void> {
+    await this.filmModel.updateOne(
+      { id: filmId, 'schedule.id': sessionId },
+      { $push: { 'schedule.$.taken': seatKey } },
+    );
+  }
+
+  async seedIfEmpty(): Promise<void> {
+    const count = await this.filmModel.countDocuments();
+    if (count > 0) return;
+
+    await this.filmModel.create({
       id: randomUUID(),
       rating: 7.8,
       director: 'Итан Райт',
@@ -30,32 +75,6 @@ export class FilmsRepository {
           taken: [],
         },
       ],
-    },
-  ];
-
-  findAll(): FilmDto[] {
-    return this.films.map((film) => ({
-      id: film.id,
-      rating: film.rating,
-      director: film.director,
-      tags: film.tags,
-      title: film.title,
-      about: film.about,
-      description: film.description,
-      image: film.image,
-      cover: film.cover,
-    }));
-  }
-
-  findById(id: string): FilmWithSchedule | undefined {
-    return this.films.find((f) => f.id === id);
-  }
-
-  findSchedule(filmId: string): ScheduleItemDto[] | undefined {
-    return this.findById(filmId)?.schedule;
-  }
-
-  findSession(filmId: string, sessionId: string): ScheduleItemDto | undefined {
-    return this.findSchedule(filmId)?.find((s) => s.id === sessionId);
+    });
   }
 }

@@ -10,9 +10,11 @@ export class OrderService {
     private readonly filmsRepository: FilmsRepository,
   ) {}
 
-  createOrder(order: CreateOrderDto): OrderListDto {
-    const createdItems = order.tickets.map((ticket) => {
-      const session = this.filmsRepository.findSession(
+  async createOrder(order: CreateOrderDto): Promise<OrderListDto> {
+    const createdItems = [];
+
+    for (const ticket of order.tickets) {
+      const session = await this.filmsRepository.findSession(
         ticket.film,
         ticket.session,
       );
@@ -27,9 +29,14 @@ export class OrderService {
         throw new BadRequestException(`Seat ${seatKey} is already taken`);
       }
 
-      session.taken.push(seatKey);
-      return this.orderRepository.create(ticket);
-    });
+      await this.filmsRepository.addTakenSeat(
+        ticket.film,
+        ticket.session,
+        seatKey,
+      );
+      const created = await this.orderRepository.create(ticket);
+      createdItems.push(created);
+    }
 
     return { total: createdItems.length, items: createdItems };
   }

@@ -1,18 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { randomUUID } from 'node:crypto';
+import { Order, OrderDocument } from './schemas/order.schema';
 import { OrderResultDto, TicketDto } from '../order/dto/order.dto';
 
 @Injectable()
 export class OrderRepository {
-  private orders: OrderResultDto[] = [];
+  constructor(
+    @InjectModel(Order.name) private readonly orderModel: Model<OrderDocument>,
+  ) {}
 
-  create(item: TicketDto): OrderResultDto {
-    const newItem: OrderResultDto = { ...item, id: randomUUID() };
-    this.orders.push(newItem);
+  async create(item: TicketDto): Promise<OrderResultDto> {
+    const newItem = { ...item, id: randomUUID() };
+    await this.orderModel.create(newItem);
     return newItem;
   }
 
-  findAll(): OrderResultDto[] {
-    return this.orders;
+  async findAll(): Promise<OrderResultDto[]> {
+    return this.orderModel.find().lean().exec();
   }
 }

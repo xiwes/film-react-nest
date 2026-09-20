@@ -6,13 +6,13 @@ import { FilmsListDto, FilmScheduleDto } from './dto/films.dto';
 export class FilmsService {
   constructor(private readonly filmsRepository: FilmsRepository) {}
 
-  getAllFilms(): FilmsListDto {
-    const items = this.filmsRepository.findAll();
+  async getAllFilms(): Promise<FilmsListDto> {
+    const items = await this.filmsRepository.findAll();
     return { total: items.length, items };
   }
 
-  getSchedule(filmId: string): FilmScheduleDto {
-    const schedule = this.filmsRepository.findSchedule(filmId);
+  async getSchedule(filmId: string): Promise<FilmScheduleDto> {
+    const schedule = await this.filmsRepository.findSchedule(filmId);
     if (!schedule) {
       throw new NotFoundException(`Film with id ${filmId} not found`);
     }
