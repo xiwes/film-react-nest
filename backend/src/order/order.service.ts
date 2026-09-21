@@ -11,7 +11,7 @@ export class OrderService {
   ) {}
 
   async createOrder(order: CreateOrderDto): Promise<OrderListDto> {
-    const createdItems = [];
+    const seenSeats = new Set<string>();
 
     for (const ticket of order.tickets) {
       const session = await this.filmsRepository.findSession(
@@ -35,11 +35,25 @@ export class OrderService {
         );
       }
 
-      const seatKey = `${ticket.row}:${ticket.seat}`;
-      if (session.taken.includes(seatKey)) {
-        throw new BadRequestException(`Seat ${seatKey} is already taken`);
+      const seatKey = `${ticket.session}:${ticket.row}:${ticket.seat}`;
+
+      if (session.taken.includes(`${ticket.row}:${ticket.seat}`)) {
+        throw new BadRequestException(
+          `Seat ${ticket.row}:${ticket.seat} is already taken`,
+        );
       }
 
+      if (seenSeats.has(seatKey)) {
+        throw new BadRequestException(
+          `Seat ${ticket.row}:${ticket.seat} is requested more than once in this order`,
+        );
+      }
+      seenSeats.add(seatKey);
+    }
+
+    const createdItems = [];
+    for (const ticket of order.tickets) {
+      const seatKey = `${ticket.row}:${ticket.seat}`;
       await this.filmsRepository.addTakenSeat(
         ticket.film,
         ticket.session,
