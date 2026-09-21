@@ -24,6 +24,17 @@ export class OrderService {
         );
       }
 
+      if (
+        ticket.row < 1 ||
+        ticket.row > session.rows ||
+        ticket.seat < 1 ||
+        ticket.seat > session.seats
+      ) {
+        throw new BadRequestException(
+          `Seat ${ticket.row}:${ticket.seat} is out of hall bounds`,
+        );
+      }
+
       const seatKey = `${ticket.row}:${ticket.seat}`;
       if (session.taken.includes(seatKey)) {
         throw new BadRequestException(`Seat ${seatKey} is already taken`);
