@@ -43,10 +43,27 @@ export class FilmsRepository {
     filmId: string,
     sessionId: string,
     seatKey: string,
+  ): Promise<boolean> {
+    const result = await this.filmModel.updateOne(
+      {
+        id: filmId,
+        schedule: {
+          $elemMatch: { id: sessionId, taken: { $ne: seatKey } },
+        },
+      },
+      { $push: { 'schedule.$.taken': seatKey } },
+    );
+    return result.modifiedCount === 1;
+  }
+
+  async releaseTakenSeat(
+    filmId: string,
+    sessionId: string,
+    seatKey: string,
   ): Promise<void> {
     await this.filmModel.updateOne(
       { id: filmId, 'schedule.id': sessionId },
-      { $push: { 'schedule.$.taken': seatKey } },
+      { $pull: { 'schedule.$.taken': seatKey } },
     );
   }
 

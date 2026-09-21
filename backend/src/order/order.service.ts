@@ -35,30 +35,43 @@ export class OrderService {
         );
       }
 
-      const seatKey = `${ticket.session}:${ticket.row}:${ticket.seat}`;
-
-      if (session.taken.includes(`${ticket.row}:${ticket.seat}`)) {
-        throw new BadRequestException(
-          `Seat ${ticket.row}:${ticket.seat} is already taken`,
-        );
-      }
-
-      if (seenSeats.has(seatKey)) {
+      const dedupeKey = `${ticket.session}:${ticket.row}:${ticket.seat}`;
+      if (seenSeats.has(dedupeKey)) {
         throw new BadRequestException(
           `Seat ${ticket.row}:${ticket.seat} is requested more than once in this order`,
         );
       }
-      seenSeats.add(seatKey);
+      seenSeats.add(dedupeKey);
+    }
+
+    const reserved: { film: string; session: string; seatKey: string }[] = [];
+
+    try {
+      for (const ticket of order.tickets) {
+        const seatKey = `${ticket.row}:${ticket.seat}`;
+        const ok = await this.filmsRepository.addTakenSeat(
+          ticket.film,
+          ticket.session,
+          seatKey,
+        );
+        if (!ok) {
+          throw new BadRequestException(`Seat ${seatKey} is already taken`);
+        }
+        reserved.push({ film: ticket.film, session: ticket.session, seatKey });
+      }
+    } catch (error) {
+      for (const seat of reserved) {
+        await this.filmsRepository.releaseTakenSeat(
+          seat.film,
+          seat.session,
+          seat.seatKey,
+        );
+      }
+      throw error;
     }
 
     const createdItems = [];
     for (const ticket of order.tickets) {
-      const seatKey = `${ticket.row}:${ticket.seat}`;
-      await this.filmsRepository.addTakenSeat(
-        ticket.film,
-        ticket.session,
-        seatKey,
-      );
       const created = await this.orderRepository.create(ticket);
       createdItems.push(created);
     }
