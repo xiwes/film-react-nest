@@ -9,8 +9,8 @@ export class Schedule {
   @Column()
   daytime: string;
 
-  @Column()
-  hall: string;
+  @Column('integer')
+  hall: number;
 
   @Column('integer')
   rows: number;

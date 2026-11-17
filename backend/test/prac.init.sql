@@ -18,7 +18,7 @@ CREATE TABLE films (
 CREATE TABLE schedules (
     id uuid PRIMARY KEY,
     daytime varchar NOT NULL,
-    hall varchar NOT NULL,
+    hall integer NOT NULL,
     rows integer NOT NULL,
     seats integer NOT NULL,
     price double precision NOT NULL,
