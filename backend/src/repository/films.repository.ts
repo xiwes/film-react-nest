@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { randomUUID } from 'node:crypto';
-import { Film, FilmDocument } from './schemas/film.schema';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { isUUID } from 'class-validator';
+import { Film } from '../films/entities/film.entity';
+import { Schedule } from '../films/entities/schedule.entity';
 import { FilmDto, ScheduleItemDto } from '../films/dto/films.dto';
 
 @Injectable()
 export class FilmsRepository {
   constructor(
-    @InjectModel(Film.name) private readonly filmModel: Model<FilmDocument>,
+    @InjectRepository(Film) private readonly filmRepository: Repository<Film>,
+    @InjectRepository(Schedule)
+    private readonly scheduleRepository: Repository<Schedule>,
   ) {}
 
   async findAll(): Promise<FilmDto[]> {
-    const films = await this.filmModel.find().lean().exec();
+    const films = await this.filmRepository.find({ order: { title: 'ASC' } });
     return films.map((film) => ({
       id: film.id,
       rating: film.rating,
@@ -27,16 +30,29 @@ export class FilmsRepository {
   }
 
   async findSchedule(filmId: string): Promise<ScheduleItemDto[] | undefined> {
-    const film = await this.filmModel.findOne({ id: filmId }).lean().exec();
-    return film?.schedule;
+    if (!isUUID(filmId)) return undefined;
+
+    const filmExists = await this.filmRepository.existsBy({ id: filmId });
+    if (!filmExists) return undefined;
+
+    const schedules = await this.scheduleRepository.find({
+      where: { filmId },
+      order: { daytime: 'ASC' },
+    });
+    return schedules.map((item) => this.toScheduleItem(item));
   }
 
   async findSession(
     filmId: string,
     sessionId: string,
   ): Promise<ScheduleItemDto | undefined> {
-    const schedule = await this.findSchedule(filmId);
-    return schedule?.find((s) => s.id === sessionId);
+    if (!isUUID(filmId) || !isUUID(sessionId)) return undefined;
+
+    const session = await this.scheduleRepository.findOneBy({
+      id: sessionId,
+      filmId,
+    });
+    return session ? this.toScheduleItem(session) : undefined;
   }
 
   async addTakenSeat(
@@ -44,16 +60,17 @@ export class FilmsRepository {
     sessionId: string,
     seatKey: string,
   ): Promise<boolean> {
-    const result = await this.filmModel.updateOne(
-      {
-        id: filmId,
-        schedule: {
-          $elemMatch: { id: sessionId, taken: { $ne: seatKey } },
-        },
-      },
-      { $push: { 'schedule.$.taken': seatKey } },
-    );
-    return result.modifiedCount === 1;
+    if (!isUUID(filmId) || !isUUID(sessionId)) return false;
+
+    const result = await this.scheduleRepository
+      .createQueryBuilder()
+      .update(Schedule)
+      .set({ taken: () => 'array_append(taken, :seatKey)' })
+      .where('id = :sessionId AND film_id = :filmId', { sessionId, filmId })
+      .andWhere('NOT (:seatKey = ANY(taken))')
+      .setParameter('seatKey', seatKey)
+      .execute();
+    return result.affected === 1;
   }
 
   async releaseTakenSeat(
@@ -61,37 +78,26 @@ export class FilmsRepository {
     sessionId: string,
     seatKey: string,
   ): Promise<void> {
-    await this.filmModel.updateOne(
-      { id: filmId, 'schedule.id': sessionId },
-      { $pull: { 'schedule.$.taken': seatKey } },
-    );
+    if (!isUUID(filmId) || !isUUID(sessionId)) return;
+
+    await this.scheduleRepository
+      .createQueryBuilder()
+      .update(Schedule)
+      .set({ taken: () => 'array_remove(taken, :seatKey)' })
+      .where('id = :sessionId AND film_id = :filmId', { sessionId, filmId })
+      .setParameter('seatKey', seatKey)
+      .execute();
   }
 
-  async seedIfEmpty(): Promise<void> {
-    const count = await this.filmModel.countDocuments();
-    if (count > 0) return;
-
-    await this.filmModel.create({
-      id: randomUUID(),
-      rating: 7.8,
-      director: 'Итан Райт',
-      tags: ['Документальный'],
-      title: 'Архитекторы общества',
-      about: 'Документальный фильм об искусственном интеллекте.',
-      description: 'Полное описание фильма про технологии и общество.',
-      image: '/bg1s.jpg',
-      cover: '/bg1c.jpg',
-      schedule: [
-        {
-          id: randomUUID(),
-          daytime: new Date().toISOString(),
-          hall: '1',
-          rows: 5,
-          seats: 10,
-          price: 350,
-          taken: [],
-        },
-      ],
-    });
+  private toScheduleItem(item: Schedule): ScheduleItemDto {
+    return {
+      id: item.id,
+      daytime: item.daytime,
+      hall: item.hall,
+      rows: item.rows,
+      seats: item.seats,
+      price: item.price,
+      taken: item.taken,
+    };
   }
 }

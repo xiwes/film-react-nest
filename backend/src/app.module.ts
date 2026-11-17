@@ -1,19 +1,19 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import * as path from 'node:path';
 
 import { configProvider } from './app.config.provider';
 
 import { FilmsController } from './films/films.controller';
 import { FilmsService } from './films/films.service';
+import { Film } from './films/entities/film.entity';
+import { Schedule } from './films/entities/schedule.entity';
 import { OrderController } from './order/order.controller';
 import { OrderService } from './order/order.service';
 import { FilmsRepository } from './repository/films.repository';
 import { OrderRepository } from './repository/order.repository';
-import { Film, FilmSchema } from './repository/schemas/film.schema';
-import { Order, OrderSchema } from './repository/schemas/order.schema';
 
 @Module({
   imports: [
@@ -21,16 +21,30 @@ import { Order, OrderSchema } from './repository/schemas/order.schema';
       isGlobal: true,
       cache: true,
     }),
-    MongooseModule.forRootAsync({
+    TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('DATABASE_URL'),
-      }),
+      useFactory: (configService: ConfigService) => {
+        const driver = configService.get<string>('DATABASE_DRIVER');
+        if (driver !== 'postgres') {
+          throw new Error(
+            `Unsupported DATABASE_DRIVER "${driver}", expected "postgres"`,
+          );
+        }
+
+        const url = new URL(configService.getOrThrow<string>('DATABASE_URL'));
+        return {
+          type: 'postgres' as const,
+          host: url.hostname,
+          port: Number(url.port) || 5432,
+          database: url.pathname.replace(/^\//, ''),
+          username: configService.get<string>('DATABASE_USERNAME'),
+          password: configService.get<string>('DATABASE_PASSWORD'),
+          entities: [Film, Schedule],
+          synchronize: false,
+        };
+      },
     }),
-    MongooseModule.forFeature([
-      { name: Film.name, schema: FilmSchema },
-      { name: Order.name, schema: OrderSchema },
-    ]),
+    TypeOrmModule.forFeature([Film, Schedule]),
     ServeStaticModule.forRoot({
       rootPath: path.join(__dirname, '..', 'public', 'content', 'afisha'),
       serveRoot: '/content/afisha',
