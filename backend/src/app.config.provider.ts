@@ -8,6 +8,7 @@ export interface AppConfigDatabase {
 }
 
 export interface AppConfig {
+  port: number;
   database: AppConfigDatabase;
 }
 
@@ -15,6 +16,7 @@ export const configProvider = {
   provide: 'CONFIG',
   inject: [ConfigService],
   useFactory: (configService: ConfigService): AppConfig => ({
+    port: Number(configService.get<string>('PORT', '3000')),
     database: {
       driver: configService.get<string>('DATABASE_DRIVER', 'postgres'),
       url: configService.getOrThrow<string>('DATABASE_URL'),

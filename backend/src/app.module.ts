@@ -12,7 +12,8 @@ import { Film } from './films/entities/film.entity';
 import { Schedule } from './films/entities/schedule.entity';
 import { OrderController } from './order/order.controller';
 import { OrderService } from './order/order.service';
-import { FilmsRepository } from './repository/films.repository';
+import { FILMS_REPOSITORY } from './repository/films.repository';
+import { FilmsTypeOrmRepository } from './repository/films.typeorm.repository';
 import { OrderRepository } from './repository/order.repository';
 
 @Module({
@@ -55,7 +56,7 @@ import { OrderRepository } from './repository/order.repository';
     configProvider,
     FilmsService,
     OrderService,
-    FilmsRepository,
+    { provide: FILMS_REPOSITORY, useClass: FilmsTypeOrmRepository },
     OrderRepository,
   ],
 })
