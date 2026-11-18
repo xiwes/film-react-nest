@@ -1,12 +1,16 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, BadRequestException } from '@nestjs/common';
 import { OrderRepository } from '../repository/order.repository';
-import { FilmsRepository } from '../repository/films.repository';
+import {
+  FILMS_REPOSITORY,
+  FilmsRepository,
+} from '../repository/films.repository';
 import { CreateOrderDto, OrderListDto } from './dto/order.dto';
 
 @Injectable()
 export class OrderService {
   constructor(
     private readonly orderRepository: OrderRepository,
+    @Inject(FILMS_REPOSITORY)
     private readonly filmsRepository: FilmsRepository,
   ) {}
 

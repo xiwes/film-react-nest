@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
-import { FilmsRepository } from './repository/films.repository';
+import { AppConfig } from './app.config.provider';
 import 'dotenv/config';
 
 async function bootstrap() {
@@ -10,9 +10,7 @@ async function bootstrap() {
   app.enableCors();
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 
-  const filmsRepository = app.get(FilmsRepository);
-  await filmsRepository.seedIfEmpty();
-
-  await app.listen(3000);
+  const config = app.get<AppConfig>('CONFIG');
+  await app.listen(config.port);
 }
 bootstrap();
